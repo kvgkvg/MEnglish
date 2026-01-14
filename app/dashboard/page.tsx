@@ -16,33 +16,66 @@ export default async function DashboardPage() {
     return null;
   }
 
-  // Fetch user stats
-  const { data: userStats } = await supabase
-    .from("user_stats")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  // Fetch total words count
-  const { count: totalWords } = await supabase
-    .from("vocab_words")
-    .select("id, vocab_sets!inner(user_id)", { count: "exact", head: true })
-    .eq("vocab_sets.user_id", user.id);
-
-  // Fetch words with high memory score (mastered)
-  const { data: masteredWordsData } = await supabase
-    .from("learning_progress")
-    .select("id")
-    .eq("user_id", user.id)
-    .gte("memory_score", 85);
+  // Run all independent queries in parallel for better performance
+  const [
+    { data: userStats },
+    { count: totalWords },
+    { data: masteredWordsData },
+    { data: progressData },
+    { data: recentSessions },
+    { data: sessionsForCalendar },
+    { data: sessionsForChart },
+  ] = await Promise.all([
+    // Fetch user stats
+    supabase
+      .from("user_stats")
+      .select("*")
+      .eq("user_id", user.id)
+      .single(),
+    // Fetch total words count
+    supabase
+      .from("vocab_words")
+      .select("id, vocab_sets!inner(user_id)", { count: "exact", head: true })
+      .eq("vocab_sets.user_id", user.id),
+    // Fetch words with high memory score (mastered)
+    supabase
+      .from("learning_progress")
+      .select("id")
+      .eq("user_id", user.id)
+      .gte("memory_score", 85),
+    // Fetch all learning progress for average calculation
+    supabase
+      .from("learning_progress")
+      .select("memory_score")
+      .eq("user_id", user.id),
+    // Fetch recent learning sessions
+    supabase
+      .from("learning_sessions")
+      .select("id, session_type, score, completed_at, vocab_sets(name)")
+      .eq("user_id", user.id)
+      .order("completed_at", { ascending: false })
+      .limit(5),
+    // Fetch sessions for calendar (last 49 days)
+    supabase
+      .from("learning_sessions")
+      .select("completed_at")
+      .eq("user_id", user.id)
+      .gte(
+        "completed_at",
+        new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
+      ),
+    // Fetch sessions for chart (last 7 days) - single query instead of 14
+    supabase
+      .from("learning_sessions")
+      .select("score, completed_at")
+      .eq("user_id", user.id)
+      .gte(
+        "completed_at",
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      ),
+  ]);
 
   const masteredWords = masteredWordsData?.length || 0;
-
-  // Calculate average memory score
-  const { data: progressData } = await supabase
-    .from("learning_progress")
-    .select("memory_score")
-    .eq("user_id", user.id);
 
   const avgMemoryScore =
     progressData && progressData.length > 0
@@ -51,14 +84,6 @@ export default async function DashboardPage() {
             progressData.length
         )
       : 0;
-
-  // Fetch recent learning sessions
-  const { data: recentSessions } = await supabase
-    .from("learning_sessions")
-    .select("id, session_type, score, completed_at, vocab_sets(name)")
-    .eq("user_id", user.id)
-    .order("completed_at", { ascending: false })
-    .limit(5);
 
   // Format recent activities
   const recentActivities = (recentSessions || []).map((session) => ({
@@ -69,16 +94,7 @@ export default async function DashboardPage() {
     timestamp: formatTimestamp(new Date(session.completed_at)),
   }));
 
-  // Generate activity data for streak calendar (last 49 days)
-  const { data: sessionsForCalendar } = await supabase
-    .from("learning_sessions")
-    .select("completed_at")
-    .eq("user_id", user.id)
-    .gte(
-      "completed_at",
-      new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
-    );
-
+  // Generate activity data for streak calendar
   const activityMap = new Map<string, number>();
   (sessionsForCalendar || []).forEach((session) => {
     const date = new Date(session.completed_at).toLocaleDateString();
@@ -97,8 +113,8 @@ export default async function DashboardPage() {
     };
   });
 
-  // Generate progress data for chart (last 7 days)
-  const progressChartData = await generateProgressChartData(supabase, user.id);
+  // Generate progress chart data from single query
+  const progressChartData = generateProgressChartData(sessionsForChart || []);
 
   // Calculate current streak
   const currentStreak = userStats?.current_streak || 0;
@@ -209,45 +225,44 @@ function formatTimestamp(date: Date): string {
   }
 }
 
-async function generateProgressChartData(supabase: any, userId: string) {
+function generateProgressChartData(sessions: { score: number | null; completed_at: string }[]) {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const result = [];
 
+  // Group sessions by day
+  const sessionsByDay = new Map<string, { score: number | null; completed_at: string }[]>();
+
+  for (const session of sessions) {
+    const date = new Date(session.completed_at);
+    date.setHours(0, 0, 0, 0);
+    const dateKey = date.toISOString();
+
+    if (!sessionsByDay.has(dateKey)) {
+      sessionsByDay.set(dateKey, []);
+    }
+    sessionsByDay.get(dateKey)!.push(session);
+  }
+
+  // Generate data for the last 7 days
   for (let i = 6; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i);
     date.setHours(0, 0, 0, 0);
+    const dateKey = date.toISOString();
 
-    const nextDate = new Date(date);
-    nextDate.setDate(nextDate.getDate() + 1);
-
-    // Count sessions for this day
-    const { count: sessionsCount } = await supabase
-      .from("learning_sessions")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("completed_at", date.toISOString())
-      .lt("completed_at", nextDate.toISOString());
-
-    // Get average score for this day
-    const { data: sessionsData } = await supabase
-      .from("learning_sessions")
-      .select("score")
-      .eq("user_id", userId)
-      .gte("completed_at", date.toISOString())
-      .lt("completed_at", nextDate.toISOString());
+    const daySessions = sessionsByDay.get(dateKey) || [];
 
     const avgScore =
-      sessionsData && sessionsData.length > 0
+      daySessions.length > 0
         ? Math.round(
-            sessionsData.reduce((sum: number, s: any) => sum + (s.score || 0), 0) /
-              sessionsData.length
+            daySessions.reduce((sum, s) => sum + (s.score || 0), 0) /
+              daySessions.length
           )
         : 0;
 
     result.push({
       date: days[date.getDay()],
-      wordsLearned: sessionsCount || 0,
+      wordsLearned: daySessions.length,
       memoryScore: avgScore,
     });
   }
