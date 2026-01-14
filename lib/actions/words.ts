@@ -70,7 +70,7 @@ export async function updateWord(
     .eq("id", wordId)
     .single();
 
-  if (wordError || !wordData || wordData.vocab_sets.user_id !== user.id) {
+  if (wordError || !wordData || (wordData.vocab_sets as any).user_id !== user.id) {
     return { error: "Word not found or unauthorized" };
   }
 
@@ -107,7 +107,7 @@ export async function deleteWord(wordId: string) {
     .eq("id", wordId)
     .single();
 
-  if (wordError || !wordData || wordData.vocab_sets.user_id !== user.id) {
+  if (wordError || !wordData || (wordData.vocab_sets as any).user_id !== user.id) {
     return { error: "Word not found or unauthorized" };
   }
 
