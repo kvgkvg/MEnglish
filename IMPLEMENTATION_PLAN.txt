@@ -1,0 +1,501 @@
+# English Vocabulary Learning Platform - Implementation Plan
+
+## Project Overview
+Building a modern vocabulary learning platform with spaced repetition, multiple learning modes, and intelligent word extraction. Users can create, organize, and study vocabulary sets with progress tracking.
+
+## Technical Stack
+- **Framework**: Next.js 15 (App Router)
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Database**: Supabase (PostgreSQL + Auth)
+- **Deployment**: Vercel
+- **External APIs**:
+  - DeepSeek (via OpenRouter) for essay word extraction
+  - Oxford Learner's Dictionary for definitions
+
+## Database Schema
+
+### Tables
+1. **users** (handled by Supabase Auth)
+   - id, email, created_at
+
+2. **folders**
+   - id, user_id, name, created_at, updated_at
+
+3. **vocab_sets**
+   - id, user_id, folder_id (nullable), name, description, created_at, updated_at
+
+4. **vocab_words**
+   - id, set_id, word, definition, example_sentence, created_at
+
+5. **learning_progress**
+   - id, user_id, word_id, memory_score (0-100), next_review_date, last_reviewed, review_count, correct_count, incorrect_count
+
+6. **learning_sessions**
+   - id, user_id, set_id, session_type (flashcard/multiple_choice/write/matching/test), score, completed_at
+
+7. **user_stats**
+   - id, user_id, total_words_learned, current_streak, longest_streak, last_activity_date
+
+## Project Structure
+```
+menglish/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/page.tsx
+│   │   └── signup/page.tsx
+│   ├── (dashboard)/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx (Dashboard)
+│   │   ├── learn/
+│   │   │   ├── page.tsx (Sets list)
+│   │   │   ├── [setId]/
+│   │   │   │   ├── page.tsx (Learning modes menu)
+│   │   │   │   ├── flashcard/page.tsx
+│   │   │   │   ├── multiple-choice/page.tsx
+│   │   │   │   ├── write/page.tsx
+│   │   │   │   ├── matching/page.tsx
+│   │   │   │   └── test/page.tsx
+│   │   │   └── create/page.tsx
+│   │   └── folders/page.tsx
+│   ├── api/
+│   │   ├── import/
+│   │   │   ├── csv/route.ts
+│   │   │   ├── quizlet/route.ts
+│   │   │   └── essay/route.ts
+│   │   ├── dictionary/
+│   │   │   └── oxford/route.ts
+│   │   └── spaced-repetition/
+│   │       └── calculate/route.ts
+│   ├── layout.tsx
+│   └── globals.css
+├── components/
+│   ├── ui/ (shadcn components)
+│   ├── dashboard/
+│   ├── learning/
+│   ├── vocab-set/
+│   └── shared/
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts
+│   │   └── server.ts
+│   ├── algorithms/
+│   │   └── spaced-repetition.ts
+│   ├── utils/
+│   │   ├── import-parsers.ts
+│   │   └── oxford-scraper.ts
+│   └── hooks/
+├── types/
+│   └── index.ts
+└── supabase/
+    └── migrations/
+```
+
+## Implementation Plan - Period by Period
+
+### Period 1: Project Foundation
+**Goal**: Setup Next.js project with authentication and basic layout
+
+**Tasks**:
+- Initialize Next.js 15 project with TypeScript
+- Install dependencies (Tailwind, shadcn/ui, Supabase client)
+- Setup Supabase project and get credentials
+- Configure environment variables
+- Install shadcn/ui and initialize components
+- Create basic layout with navigation (Dashboard, Learn tabs)
+- Implement Supabase authentication (signup, login, logout)
+- Create protected route middleware
+- Add basic auth pages (login, signup)
+
+**Files Created**:
+- `package.json`, `tailwind.config.ts`, `next.config.js`
+- `app/layout.tsx`, `app/globals.css`
+- `app/(auth)/login/page.tsx`, `app/(auth)/signup/page.tsx`
+- `lib/supabase/client.ts`, `lib/supabase/server.ts`
+- `middleware.ts` (route protection)
+- `components/ui/*` (shadcn components)
+
+**Verification**: User can signup, login, and see protected dashboard layout
+
+---
+
+### Period 2: Database Schema & Dashboard UI
+**Goal**: Setup database tables and create dashboard with mock data
+
+**Tasks**:
+- Create Supabase migration for all tables
+- Setup Row Level Security (RLS) policies
+- Build Dashboard page UI components
+- Create stats cards (total words, streak, memory score)
+- Add recent activity section
+- Implement progress charts (can use recharts library)
+- Add mock data for visualization
+
+**Files Created**:
+- `supabase/migrations/001_initial_schema.sql`
+- `app/(dashboard)/page.tsx`
+- `components/dashboard/StatsCard.tsx`
+- `components/dashboard/ProgressChart.tsx`
+- `components/dashboard/StreakCalendar.tsx`
+- `types/index.ts`
+
+**Verification**: Dashboard displays stats and progress with mock data
+
+---
+
+### Period 3: Vocab Set Management (CRUD + Folders)
+**Goal**: Create, read, update, delete vocab sets and organize in folders
+
+**Tasks**:
+- Build Learn page showing all sets
+- Create folder management UI (create, rename, delete folders)
+- Implement drag-and-drop or dropdown to move sets between folders
+- Add folder sidebar/tree view
+- Create set card component showing progress bar
+- Implement CRUD operations for sets
+- Add empty states and loading states
+
+**Files Created**:
+- `app/(dashboard)/learn/page.tsx`
+- `app/(dashboard)/folders/page.tsx`
+- `components/vocab-set/SetCard.tsx`
+- `components/vocab-set/FolderTree.tsx`
+- `components/vocab-set/SetDialog.tsx`
+- `lib/actions/sets.ts` (server actions)
+- `lib/actions/folders.ts`
+
+**Verification**: User can create folders, create empty sets, move sets between folders
+
+---
+
+### Period 4: Manual Vocab Creation Interface
+**Goal**: Allow users to manually add words to sets
+
+**Tasks**:
+- Create "New Set" page with stepper/wizard
+- Build word input form (word + definition + example)
+- Implement dynamic form array (add/remove words)
+- Add bulk edit functionality
+- Save words to database
+- Link to vocab_words table
+
+**Files Created**:
+- `app/(dashboard)/learn/create/page.tsx`
+- `components/vocab-set/WordForm.tsx`
+- `components/vocab-set/WordList.tsx`
+- `lib/actions/words.ts`
+
+**Verification**: User can create a set and manually add multiple words with definitions
+
+---
+
+### Period 5: CSV/TSV Import
+**Goal**: Import vocabulary from CSV/TSV files
+
+**Tasks**:
+- Create import modal/page
+- Build file upload component
+- Implement CSV/TSV parser (use papaparse library)
+- Add preview table before import
+- Map columns (word, definition, example)
+- Validate data format
+- Bulk insert into database
+
+**Files Created**:
+- `app/api/import/csv/route.ts`
+- `components/vocab-set/ImportDialog.tsx`
+- `components/vocab-set/ImportPreview.tsx`
+- `lib/utils/import-parsers.ts`
+
+**Verification**: User can upload CSV/TSV file and import words into a set
+
+---
+
+### Period 6: Quizlet Import
+**Goal**: Import sets from Quizlet links
+
+**Tasks**:
+- Research Quizlet URL structure and API/scraping options
+- Build Quizlet link input UI
+- Implement Quizlet data extraction (may need web scraping)
+- Parse and format data
+- Import into vocab_sets and vocab_words tables
+- Handle errors (invalid links, rate limits)
+
+**Files Created**:
+- `app/api/import/quizlet/route.ts`
+- `lib/utils/quizlet-scraper.ts`
+
+**Verification**: User can paste Quizlet set URL and import the vocabulary
+
+---
+
+### Period 7: Essay Import with AI Extraction
+**Goal**: Extract new words from essays using DeepSeek and Oxford Dictionary
+
+**Tasks**:
+- Create essay input interface (textarea)
+- Integrate OpenRouter API with DeepSeek model
+- Send essay + existing user vocab to AI for new word extraction
+- Implement Oxford Learner's Dictionary scraper/API
+- For each extracted word, fetch appropriate definition from Oxford
+- Present words with definitions for user review/edit
+- Allow user to select which words to import
+- Save selected words to set
+
+**Files Created**:
+- `app/api/import/essay/route.ts`
+- `app/api/dictionary/oxford/route.ts`
+- `lib/utils/oxford-scraper.ts`
+- `lib/utils/deepseek-client.ts`
+- `components/vocab-set/EssayImport.tsx`
+- `components/vocab-set/ExtractedWordsList.tsx`
+
+**Verification**: User pastes essay, AI extracts new words, Oxford definitions fetched, user imports selected words
+
+---
+
+### Period 8: Flashcard Learning Mode
+**Goal**: Implement swipeable flashcard interface
+
+**Tasks**:
+- Create flashcard UI component (card flip animation)
+- Implement swipe gestures (use framer-motion or react-swipeable)
+- Add check (✓) and X buttons as alternatives to swipe
+- Randomize word order
+- Track correct/incorrect responses
+- Update learning_progress table after session
+- Show session summary at end
+- Add post-session popup (learn again or test)
+
+**Files Created**:
+- `app/(dashboard)/learn/[setId]/flashcard/page.tsx`
+- `components/learning/Flashcard.tsx`
+- `components/learning/SessionSummary.tsx`
+- `components/learning/PostSessionDialog.tsx`
+- `lib/actions/learning-progress.ts`
+
+**Verification**: User can study flashcards with swipe/button interactions, progress is saved
+
+---
+
+### Period 9: Multiple Choice Mode
+**Goal**: Quiz with multiple choice questions
+
+**Tasks**:
+- Generate multiple choice questions (word→definition and definition→word)
+- Create 4 answer options (1 correct + 3 distractors from same set)
+- Build MC question UI
+- Implement answer selection and feedback (correct/incorrect)
+- Track score
+- Update learning_progress
+- Show session summary
+
+**Files Created**:
+- `app/(dashboard)/learn/[setId]/multiple-choice/page.tsx`
+- `components/learning/MultipleChoice.tsx`
+- `lib/utils/question-generator.ts`
+
+**Verification**: User answers multiple choice questions, sees immediate feedback, score is tracked
+
+---
+
+### Period 10: Write the Word Mode
+**Goal**: Type the word given the definition
+
+**Tasks**:
+- Display definition, user types the word
+- Implement fuzzy matching for answer checking (allow minor typos)
+- Show correct answer if wrong
+- Provide immediate feedback
+- Track performance
+- Update learning_progress
+- Session summary
+
+**Files Created**:
+- `app/(dashboard)/learn/[setId]/write/page.tsx`
+- `components/learning/WriteTheWord.tsx`
+- `lib/utils/string-matcher.ts`
+
+**Verification**: User types answers, system validates with fuzzy matching
+
+---
+
+### Period 11: Matching Grid Game
+**Goal**: 6x6 grid matching game
+
+**Tasks**:
+- Create grid layout (6x6 = 36 squares, use ~12 word pairs = 24 squares + 12 empty)
+- Display words and definitions as tiles
+- Implement tile selection logic (click two tiles to match)
+- Add match validation
+- Remove matched pairs with animation
+- Continue until all pairs matched
+- Track time and performance
+- Update learning_progress
+
+**Files Created**:
+- `app/(dashboard)/learn/[setId]/matching/page.tsx`
+- `components/learning/MatchingGrid.tsx`
+- `components/learning/MatchingTile.tsx`
+
+**Verification**: User plays matching game, pairs are validated and removed
+
+---
+
+### Period 12: Test Mode
+**Goal**: Comprehensive test with mixed question types
+
+**Tasks**:
+- Generate test with 4 question types:
+  - True/False (is this definition correct for this word?)
+  - Multiple Choice
+  - Matching (smaller grid or pairs)
+  - Write the word
+- Randomly mix question types
+- Build test navigation (question counter, progress)
+- Implement timer (optional)
+- Calculate percentage score
+- Update memory score based on performance
+- Save to learning_sessions table
+- Show detailed results
+
+**Files Created**:
+- `app/(dashboard)/learn/[setId]/test/page.tsx`
+- `components/learning/Test.tsx`
+- `components/learning/TrueFalseQuestion.tsx`
+- `components/learning/TestResults.tsx`
+- `lib/utils/test-generator.ts`
+
+**Verification**: User completes test with all question types, receives score
+
+---
+
+### Period 13: Spaced Repetition Algorithm
+**Goal**: Implement SM-2 or similar algorithm
+
+**Tasks**:
+- Research and implement spaced repetition algorithm (SM-2 or Anki-style)
+- Calculate next review date based on performance
+- Update memory_score after each learning session
+- Implement interval calculation (1 day, 3 days, 7 days, etc.)
+- Create algorithm to determine which words need review
+- Filter sets by "due for review"
+
+**Files Created**:
+- `lib/algorithms/spaced-repetition.ts`
+- `app/api/spaced-repetition/calculate/route.ts`
+- `lib/utils/memory-score.ts`
+
+**Verification**: Words get scheduled for future review, memory scores update correctly
+
+---
+
+### Period 14: Memory Score Tracking & Dashboard Integration
+**Goal**: Connect everything to dashboard with real data
+
+**Tasks**:
+- Calculate memory score for each word (based on review history)
+- Calculate overall memory score per set
+- Calculate user-wide memory score
+- Update dashboard with real stats (replace mock data)
+- Implement streak calculation (consecutive days of study)
+- Show progress over time (charts)
+- Highlight sets that need review (memory score < 85%)
+- Add notifications/badges for due reviews
+
+**Files Created**:
+- `lib/utils/stats-calculator.ts`
+- Updates to `app/(dashboard)/page.tsx`
+- `components/dashboard/ReviewNotifications.tsx`
+
+**Verification**: Dashboard shows accurate stats, memory scores reflect learning progress
+
+---
+
+### Period 15: UI/UX Polish & Animations
+**Goal**: Make it beautiful and playful
+
+**Tasks**:
+- Add framer-motion animations (page transitions, card flips, etc.)
+- Implement loading skeletons
+- Add success/celebration animations (confetti when test passed)
+- Polish color scheme (academic + playful: blues, purples, with pops of color)
+- Add sound effects (optional, with mute toggle)
+- Implement dark mode toggle
+- Add keyboard shortcuts for learning modes
+- Responsive design for mobile
+- Add tooltips and helpful hints
+- Polish empty states with illustrations
+
+**Files Created**:
+- `components/ui/AnimatedCard.tsx`
+- `components/ui/Confetti.tsx`
+- `lib/utils/animations.ts`
+- Updates to all page components
+
+**Verification**: App looks polished, animations smooth, responsive on mobile
+
+---
+
+### Period 16: Vercel Deployment Setup
+**Goal**: Deploy to production
+
+**Tasks**:
+- Create vercel.json config
+- Setup environment variables in Vercel dashboard
+- Configure Supabase for production
+- Setup custom domain (if applicable)
+- Test all features in production
+- Setup error monitoring (optional: Sentry)
+- Add analytics (optional: Vercel Analytics)
+- Create README with setup instructions
+- Test API routes in production environment
+
+**Files Created**:
+- `vercel.json`
+- `README.md`
+- `.env.example`
+
+**Verification**: App is live on Vercel, all features work in production
+
+---
+
+## Spaced Repetition Details
+
+### Algorithm (SM-2 Variant)
+- **Memory Score**: 0-100 scale per word
+- **Initial Score**: 50 (neutral)
+- **After Correct**: Increase based on difficulty (±15-25 points)
+- **After Incorrect**: Decrease (±10-20 points)
+- **Review Intervals**:
+  - Score 85-100: 7 days
+  - Score 70-84: 3 days
+  - Score 50-69: 1 day
+  - Score < 50: Same day
+
+### Goal
+Keep all words above 85% memory score through regular review
+
+---
+
+## API Keys Needed
+- **Supabase**: Project URL + Anon Key
+- **OpenRouter**: `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`
+- **DeepSeek Model**: `deepseek/deepseek-chat` (via OpenRouter)
+
+---
+
+## Testing Strategy
+Each period includes:
+1. **Manual Testing**: Use the feature as a user would
+2. **Database Verification**: Check Supabase tables for correct data
+3. **Edge Cases**: Test error states, empty states, loading states
+
+---
+
+## Notes
+- Build incrementally, test after each period
+- Focus on functionality first, polish later (Period 15)
+- Keep user data secure with RLS policies
+- Optimize for performance (lazy loading, pagination for large sets)
+- Make it fun! Learning should be engaging
