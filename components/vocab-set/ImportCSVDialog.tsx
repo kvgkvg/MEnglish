@@ -95,7 +95,7 @@ export function ImportCSVDialog({
       header: true,
       skipEmptyLines: true,
       complete: processParseResults,
-      error: (error) => {
+      error: (error: Error) => {
         setError(`Error parsing file: ${error.message}`);
       },
     });
@@ -114,7 +114,7 @@ export function ImportCSVDialog({
       header: true,
       skipEmptyLines: true,
       complete: processParseResults,
-      error: (error) => {
+      error: (error: Error) => {
         setError(`Error parsing text: ${error.message}`);
       },
     });
