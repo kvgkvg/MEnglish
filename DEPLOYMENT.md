@@ -28,14 +28,28 @@ git push -u origin main
    - **Build Command**: `npm run build` (auto-detected)
    - **Output Directory**: `.next` (auto-detected)
 
-5. **Add Environment Variables**:
-   Click "Environment Variables" and add:
-   
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://vvlmxhujhmdiypygflsl.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_JP2taBXqSOZZsx2EpNUjMA_0ZunGv9a
-   OPENROUTER_API_KEY=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
-   ```
+5. **Add Environment Variables** (IMPORTANT):
+
+   Before clicking Deploy, scroll down to find "Environment Variables" section:
+
+   Add each variable one by one:
+
+   **Variable 1:**
+   - Name: `NEXT_PUBLIC_SUPABASE_URL`
+   - Value: `https://vvlmxhujhmdiypygflsl.supabase.co`
+   - Environments: Select all (Production, Preview, Development)
+
+   **Variable 2:**
+   - Name: `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Value: `sb_publishable_JP2taBXqSOZZsx2EpNUjMA_0ZunGv9a`
+   - Environments: Select all (Production, Preview, Development)
+
+   **Variable 3:**
+   - Name: `OPENROUTER_API_KEY`
+   - Value: `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`
+   - Environments: Select all (Production, Preview, Development)
+
+   ⚠️ **Important**: Type the variable names and values directly. Do NOT reference secrets (no @ symbols).
 
 6. Click **"Deploy"**
 
@@ -85,6 +99,19 @@ Test these features:
 | `OPENROUTER_API_KEY` | OpenRouter API key | https://openrouter.ai/keys |
 
 ## Troubleshooting
+
+### ❌ Error: "Environment Variable references Secret which does not exist"
+
+**Problem**: You see an error like: `Environment Variable "NEXT_PUBLIC_SUPABASE_URL" references Secret "supabase-url", which does not exist`
+
+**Solution**:
+1. Make sure you've pulled the latest code (commit `4b472c9` or later)
+2. The `vercel.json` file should be minimal (no `env` section with @ references)
+3. Add environment variables directly in Vercel dashboard, not as secret references
+4. In the "Environment Variables" section during deployment:
+   - Type the variable NAME exactly (e.g., `NEXT_PUBLIC_SUPABASE_URL`)
+   - Type or paste the VALUE directly (e.g., `https://vvlmxhujhmdiypygflsl.supabase.co`)
+   - Do NOT use `@` symbols or reference secrets
 
 ### Build Fails
 - Check all environment variables are set correctly
