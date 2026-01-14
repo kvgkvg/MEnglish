@@ -1,10 +1,15 @@
 import { getFolders } from "@/lib/actions/folders";
 import { getVocabSets } from "@/lib/actions/sets";
-import { getSetWordsWithProgress, getSetNextReviewDate } from "@/lib/actions/learning-progress";
+import { getAllSetsWordsWithProgress } from "@/lib/actions/learning-progress";
 import { calculateSetMemoryScore } from "@/lib/algorithms/spaced-repetition";
+import { calculateNextReviewDate } from "@/lib/utils/progress-helpers";
 import { LearnPageClient } from "./LearnPageClient";
 
+// Revalidate every 30 seconds for faster navigation
+export const revalidate = 30;
+
 export default async function LearnPage() {
+  // Fetch folders and sets in parallel
   const [foldersResult, setsResult] = await Promise.all([
     getFolders(),
     getVocabSets(),
@@ -13,55 +18,58 @@ export default async function LearnPage() {
   const folders = foldersResult.data || [];
   const sets = setsResult.data || [];
 
-  // Fetch progress for all sets
-  const setsWithProgressData = await Promise.all(
-    sets.map(async (set) => {
-      try {
-        const wordsWithProgress = await getSetWordsWithProgress(set.id);
-        const nextReviewDate = await getSetNextReviewDate(set.id);
+  // Batch fetch all words with progress in just 2 DB queries (instead of 2*N)
+  const setIds = sets.map((s) => s.id);
+  const allSetsProgress = await getAllSetsWordsWithProgress(setIds);
 
-        const progressList = wordsWithProgress.map((w) => w.progress);
-        const memoryScore = calculateSetMemoryScore(progressList);
+  // Process all sets using the cached data
+  const setsWithProgressData = sets.map((set) => {
+    try {
+      const wordsWithProgress = allSetsProgress.get(set.id) || [];
+      const progressList = wordsWithProgress.map((w) => w.progress);
 
-        const masteredCount = wordsWithProgress.filter(
-          (w) => w.progress && w.progress.memory_score >= 85
-        ).length;
+      // Calculate from existing data (no extra DB call)
+      const memoryScore = calculateSetMemoryScore(progressList);
+      const nextReviewDate = calculateNextReviewDate(progressList);
 
-        const wordCount = wordsWithProgress.length;
+      const masteredCount = wordsWithProgress.filter(
+        (w) => w.progress && w.progress.memory_score >= 85
+      ).length;
 
-        // Check if set is due for review
-        const isDue = nextReviewDate ? new Date() >= nextReviewDate : true;
+      const wordCount = wordsWithProgress.length;
 
-        // Extract just the progress for calendar
-        const progress = progressList.filter((p) => p !== null);
+      // Check if set is due for review
+      const isDue = nextReviewDate ? new Date() >= nextReviewDate : true;
 
-        return {
-          set: {
-            ...set,
-            memoryScore,
-            masteredCount,
-            isDue,
-            nextReviewDate: nextReviewDate?.toISOString() || null,
-            wordCount,
-          },
-          progress: progress.filter((p): p is NonNullable<typeof p> => p !== null),
-        };
-      } catch (error) {
-        // If error fetching progress, return set with default values
-        return {
-          set: {
-            ...set,
-            memoryScore: 0,
-            masteredCount: 0,
-            isDue: false,
-            nextReviewDate: null,
-            wordCount: 0,
-          },
-          progress: [],
-        };
-      }
-    })
-  );
+      // Extract just the progress for calendar
+      const progress = progressList.filter((p) => p !== null);
+
+      return {
+        set: {
+          ...set,
+          memoryScore,
+          masteredCount,
+          isDue,
+          nextReviewDate: nextReviewDate?.toISOString() || null,
+          wordCount,
+        },
+        progress: progress.filter((p): p is NonNullable<typeof p> => p !== null),
+      };
+    } catch {
+      // If error processing, return set with default values
+      return {
+        set: {
+          ...set,
+          memoryScore: 0,
+          masteredCount: 0,
+          isDue: false,
+          nextReviewDate: null,
+          wordCount: 0,
+        },
+        progress: [],
+      };
+    }
+  });
 
   const setsWithProgress = setsWithProgressData.map((s) => s.set);
   const setsForCalendar = setsWithProgressData.map((s) => ({

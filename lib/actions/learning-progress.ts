@@ -437,6 +437,69 @@ export async function getSetNextReviewDate(setId: string): Promise<Date | null> 
 }
 
 /**
+ * Batch get all words with progress for multiple sets (optimized - single user auth)
+ */
+export async function getAllSetsWordsWithProgress(
+  setIds: string[]
+): Promise<Map<string, Array<{ word: any; progress: LearningProgress | null }>>> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  if (setIds.length === 0) {
+    return new Map();
+  }
+
+  // Single query to get all words for all sets
+  const { data: allWords, error: wordsError } = await supabase
+    .from("vocab_words")
+    .select("*")
+    .in("set_id", setIds);
+
+  if (wordsError) {
+    throw new Error("Failed to fetch words");
+  }
+
+  if (!allWords || allWords.length === 0) {
+    return new Map();
+  }
+
+  // Single query to get all progress for all words
+  const allWordIds = allWords.map((w) => w.id);
+  const { data: allProgress } = await supabase
+    .from("learning_progress")
+    .select("*")
+    .eq("user_id", user.id)
+    .in("word_id", allWordIds);
+
+  // Create progress lookup map
+  const progressMap = new Map<string, LearningProgress>();
+  allProgress?.forEach((p) => progressMap.set(p.word_id, p));
+
+  // Group by set
+  const result = new Map<string, Array<{ word: any; progress: LearningProgress | null }>>();
+
+  for (const setId of setIds) {
+    const setWords = allWords.filter((w) => w.set_id === setId);
+    result.set(
+      setId,
+      setWords.map((word) => ({
+        word,
+        progress: progressMap.get(word.id) || null,
+      }))
+    );
+  }
+
+  return result;
+}
+
+/**
  * Check if a set is due for review right now
  */
 export async function isSetDueForReview(setId: string): Promise<boolean> {
