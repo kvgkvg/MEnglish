@@ -20,25 +20,6 @@ export function Skeleton({
     rectangular: "rounded-lg",
   };
 
-  const animationVariants = {
-    pulse: {
-      opacity: [0.4, 0.8, 0.4],
-      transition: {
-        duration: 1.5,
-        repeat: Infinity,
-        ease: "easeInOut",
-      },
-    },
-    wave: {
-      backgroundPosition: ["200% 0", "-200% 0"],
-      transition: {
-        duration: 1.5,
-        repeat: Infinity,
-        ease: "linear",
-      },
-    },
-  };
-
   if (animation === "wave") {
     return (
       <div
@@ -64,7 +45,6 @@ export function Skeleton({
           transition={{
             duration: 1.5,
             repeat: Infinity,
-            ease: "linear",
           }}
         />
       </div>
@@ -74,7 +54,13 @@ export function Skeleton({
   return (
     <motion.div
       className={cn(baseClasses, variantClasses[variant], className)}
-      animate={animationVariants[animation]}
+      animate={{
+        opacity: [0.4, 0.8, 0.4],
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+      }}
     />
   );
 }
