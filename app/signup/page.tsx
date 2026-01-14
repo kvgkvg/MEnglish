@@ -41,8 +41,8 @@ export default function SignupPage() {
       if (error) {
         setError(error.message);
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Direct redirect is faster than router.push + refresh
+        window.location.href = "/dashboard";
       }
     } catch (err) {
       setError("An unexpected error occurred");

@@ -6,6 +6,9 @@ import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { BookOpen, Flame, Brain, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
+// Revalidate dashboard data every 60 seconds for better caching
+export const revalidate = 60;
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -16,72 +19,55 @@ export default async function DashboardPage() {
     return null;
   }
 
-  // Run all independent queries in parallel for better performance
+  // Optimized: 5 parallel queries instead of 7 (combined duplicates)
   const [
     { data: userStats },
     { count: totalWords },
-    { data: masteredWordsData },
-    { data: progressData },
+    { data: allProgress },
     { data: recentSessions },
-    { data: sessionsForCalendar },
-    { data: sessionsForChart },
+    { data: sessionsForCalendarAndChart },
   ] = await Promise.all([
-    // Fetch user stats
+    // 1. User stats (streak, etc.)
     supabase
       .from("user_stats")
-      .select("*")
+      .select("current_streak")
       .eq("user_id", user.id)
       .single(),
-    // Fetch total words count
+    // 2. Total words count
     supabase
       .from("vocab_words")
       .select("id, vocab_sets!inner(user_id)", { count: "exact", head: true })
       .eq("vocab_sets.user_id", user.id),
-    // Fetch words with high memory score (mastered)
-    supabase
-      .from("learning_progress")
-      .select("id")
-      .eq("user_id", user.id)
-      .gte("memory_score", 85),
-    // Fetch all learning progress for average calculation
+    // 3. All learning progress - calculate mastered + avg from single query
     supabase
       .from("learning_progress")
       .select("memory_score")
       .eq("user_id", user.id),
-    // Fetch recent learning sessions
+    // 4. Recent sessions with set names (limit 5)
     supabase
       .from("learning_sessions")
       .select("id, session_type, score, completed_at, vocab_sets(name)")
       .eq("user_id", user.id)
       .order("completed_at", { ascending: false })
       .limit(5),
-    // Fetch sessions for calendar (last 49 days)
-    supabase
-      .from("learning_sessions")
-      .select("completed_at")
-      .eq("user_id", user.id)
-      .gte(
-        "completed_at",
-        new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
-      ),
-    // Fetch sessions for chart (last 7 days) - single query instead of 14
+    // 5. Sessions for calendar (49 days) - also used for chart (7 days)
     supabase
       .from("learning_sessions")
       .select("score, completed_at")
       .eq("user_id", user.id)
       .gte(
         "completed_at",
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString()
       ),
   ]);
 
-  const masteredWords = masteredWordsData?.length || 0;
-
+  // Calculate mastered words and avg score from single query
+  const masteredWords = allProgress?.filter(p => p.memory_score >= 85).length || 0;
   const avgMemoryScore =
-    progressData && progressData.length > 0
+    allProgress && allProgress.length > 0
       ? Math.round(
-          progressData.reduce((sum, p) => sum + p.memory_score, 0) /
-            progressData.length
+          allProgress.reduce((sum, p) => sum + p.memory_score, 0) /
+            allProgress.length
         )
       : 0;
 
@@ -94,9 +80,10 @@ export default async function DashboardPage() {
     timestamp: formatTimestamp(new Date(session.completed_at)),
   }));
 
-  // Generate activity data for streak calendar
+  // Generate activity data for streak calendar from combined query
   const activityMap = new Map<string, number>();
-  (sessionsForCalendar || []).forEach((session) => {
+  const sessions = sessionsForCalendarAndChart || [];
+  sessions.forEach((session) => {
     const date = new Date(session.completed_at).toLocaleDateString();
     activityMap.set(date, (activityMap.get(date) || 0) + 1);
   });
@@ -113,8 +100,12 @@ export default async function DashboardPage() {
     };
   });
 
-  // Generate progress chart data from single query
-  const progressChartData = generateProgressChartData(sessionsForChart || []);
+  // Filter last 7 days for chart from the same combined query
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const chartSessions = sessions.filter(
+    s => new Date(s.completed_at).getTime() >= sevenDaysAgo
+  );
+  const progressChartData = generateProgressChartData(chartSessions);
 
   // Calculate current streak
   const currentStreak = userStats?.current_streak || 0;
