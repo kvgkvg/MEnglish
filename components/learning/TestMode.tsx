@@ -65,13 +65,27 @@ export function TestMode({ setId, setName, words }: TestModeProps) {
         const percentage = Math.round((correctCount / answers.length) * 100);
 
         // Map answers to word IDs from questions
-        const progressUpdates = answers.map((answer) => {
+        const progressUpdates = answers.flatMap((answer) => {
           const question = questions.find((q) => q.id === answer.questionId);
-          return {
-            wordId: question?.wordId || "",
+          if (!question) return [];
+
+          // For matching questions, update all word pairs
+          if (question.type === "matching") {
+            return question.pairs.map((pair) => ({
+              wordId: pair.wordId,
+              wasCorrect: answer.isCorrect,
+              questionType: answer.questionType,
+            }));
+          }
+
+          // For other question types, extract wordId from question.id
+          // Question IDs are formatted as: "prefix-wordId"
+          const wordId = question.id.split("-").slice(1).join("-");
+          return [{
+            wordId,
             wasCorrect: answer.isCorrect,
             questionType: answer.questionType,
-          };
+          }];
         }).filter(update => update.wordId); // Filter out any with missing wordId
 
         // Update progress for all test questions
