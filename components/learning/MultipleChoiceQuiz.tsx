@@ -188,12 +188,12 @@ export function MultipleChoiceQuiz({
             <div className="text-center mb-8">
               {percentage === 100 && (
                 <p className="text-lg text-green-600 font-medium">
-                  🎉 Perfect score! You've mastered this vocabulary!
+                  🎉 Perfect score! You&apos;ve mastered this vocabulary!
                 </p>
               )}
               {percentage >= 80 && percentage < 100 && (
                 <p className="text-lg text-blue-600 font-medium">
-                  Great job! You're doing really well!
+                  Great job! You&apos;re doing really well!
                 </p>
               )}
               {percentage >= 60 && percentage < 80 && (
@@ -363,7 +363,7 @@ export function MultipleChoiceQuiz({
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-gray-600 mb-1">Example:</p>
                   <p className="text-gray-900 italic">
-                    "{currentQuestion.word.example_sentence}"
+                    &quot;{currentQuestion.word.example_sentence}&quot;
                   </p>
                 </div>
               )}

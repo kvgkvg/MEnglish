@@ -298,7 +298,7 @@ export function WriteTheWordQuiz({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-gray-600 mb-1">Example:</p>
               <p className="text-gray-900 italic">
-                "{currentWord.example_sentence}"
+                &quot;{currentWord.example_sentence}&quot;
               </p>
             </div>
           )}

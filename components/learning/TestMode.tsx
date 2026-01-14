@@ -511,7 +511,7 @@ function TrueFalseQuestionComponent({
         </span>
       </div>
       <h2 className="text-2xl font-bold text-gray-900 mb-6">
-        Is this definition correct for "{question.word}"?
+        Is this definition correct for &quot;{question.word}&quot;?
       </h2>
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
         <p className="text-lg text-gray-700">{question.definition}</p>

@@ -156,7 +156,7 @@ export function ImportEssayDialog({
             AI Essay Import
           </DialogTitle>
           <DialogDescription>
-            Paste your essay and AI will extract relevant vocabulary for "{setName}"
+            Paste your essay and AI will extract relevant vocabulary for &quot;{setName}&quot;
           </DialogDescription>
         </DialogHeader>
 
@@ -254,7 +254,7 @@ The AI will analyze the text and extract advanced vocabulary words that would be
                       </p>
                       {word.example_sentence && (
                         <p className="text-sm text-gray-500 italic mt-2">
-                          "{word.example_sentence}"
+                          &quot;{word.example_sentence}&quot;
                         </p>
                       )}
                     </div>

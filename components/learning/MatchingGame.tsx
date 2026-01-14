@@ -285,7 +285,7 @@ export function MatchingGame({
               {finalAttempts <= totalPairs + (currentBatch + 1) * 2 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-lg text-green-800 font-medium">
-                    ⭐ Excellent memory! You're a matching master!
+                    ⭐ Excellent memory! You&apos;re a matching master!
                   </p>
                 </div>
               )}

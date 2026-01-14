@@ -128,7 +128,7 @@ export function Flashcard({ word, onKnow, onDontKnow }: FlashcardProps) {
                 <div className="mt-4 pt-4 border-t border-white/30 w-full">
                   <p className="text-sm opacity-75 mb-2">Example:</p>
                   <p className="text-base italic text-center">
-                    "{word.example_sentence}"
+                    &quot;{word.example_sentence}&quot;
                   </p>
                 </div>
               )}
