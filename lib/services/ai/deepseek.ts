@@ -8,6 +8,7 @@ import {
   AIService,
   WordExtractionRequest,
   WordExtractionResponse,
+  WordsOnlyResponse,
   ExtractedWord,
 } from "./types";
 
@@ -155,6 +156,200 @@ RESPOND ONLY with a valid JSON array in this EXACT format (no markdown, no extra
 ]
 
 Extract up to ${maxWords} words. Prioritize words that appear in the essay. ACCURACY IS CRITICAL - provide definitions that match what you would find in a reputable dictionary like Oxford or Merriam-Webster.`;
+  }
+
+  /**
+   * Extract only the words from an essay (no definitions)
+   * Used when fetching definitions from external dictionary
+   */
+  async extractWordsOnly(
+    request: WordExtractionRequest
+  ): Promise<WordsOnlyResponse> {
+    try {
+      const prompt = this.buildWordsOnlyPrompt(request);
+
+      const response = await fetch(this.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+          "X-Title": "MEnglish Vocabulary Learning",
+        },
+        body: JSON.stringify({
+          model: this.modelId,
+          messages: [
+            {
+              role: "system",
+              content: "You are a vocabulary extraction expert. Your task is to identify vocabulary words from essays that would be valuable for English learners. Return ONLY a JSON array of words.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new Error("No content in API response");
+      }
+
+      const words = this.parseWordsOnlyResponse(content);
+      return { words };
+    } catch (error) {
+      console.error("DeepSeek words-only extraction error:", error);
+      return {
+        words: [],
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  }
+
+  /**
+   * Get definition for a single word (fallback when Oxford doesn't have it)
+   */
+  async getDefinitionForWord(
+    word: string,
+    context?: string
+  ): Promise<ExtractedWord | null> {
+    try {
+      const contextText = context
+        ? `\n\nContext where the word was used: "${context}"`
+        : "";
+
+      const response = await fetch(this.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+          "X-Title": "MEnglish Vocabulary Learning",
+        },
+        body: JSON.stringify({
+          model: this.modelId,
+          messages: [
+            {
+              role: "system",
+              content: "You are a professional lexicographer. Provide accurate, dictionary-quality definitions.",
+            },
+            {
+              role: "user",
+              content: `Provide a definition and example sentence for the word "${word}".${contextText}
+
+Respond with ONLY valid JSON in this format:
+{
+  "word": "${word}",
+  "definition": "clear, concise definition",
+  "example_sentence": "natural example sentence using the word"
+}`,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 300,
+        }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content;
+
+      if (!content) {
+        return null;
+      }
+
+      // Parse the response
+      let jsonText = content.trim();
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```json?\n?/g, "").replace(/```\n?$/g, "");
+      }
+
+      const parsed = JSON.parse(jsonText);
+      return {
+        word: parsed.word?.toLowerCase().trim() || word,
+        definition: parsed.definition?.trim() || "",
+        example_sentence: parsed.example_sentence?.trim() || "",
+      };
+    } catch (error) {
+      console.error(`Failed to get AI definition for "${word}":`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Build prompt for words-only extraction
+   */
+  private buildWordsOnlyPrompt(request: WordExtractionRequest): string {
+    const { essay, allUserWords, maxWords = 50 } = request;
+
+    const existingWordsText =
+      allUserWords.length > 0
+        ? `\n\nWords the user ALREADY KNOWS (DO NOT extract these):\n${allUserWords.slice(0, 50).join(", ")}${allUserWords.length > 50 ? `\n... and ${allUserWords.length - 50} more words` : ""}`
+        : "";
+
+    return `Extract ALL meaningful vocabulary words from the following essay.
+
+EXTRACTION RULES:
+1. Extract ALMOST ALL non-basic words from the essay
+2. DO extract: intermediate and advanced vocabulary, academic words, sophisticated terms
+3. DO NOT extract:
+   - Basic words (the, is, are, and, but, in, on, at, this, that, etc.)
+   - Words the user already knows (listed below)
+   - Proper nouns (names of people, places, brands)
+   - Numbers and dates
+4. Return words in their BASE FORM (infinitive for verbs, singular for nouns)
+
+GOAL: Maximize useful vocabulary words for learning
+${existingWordsText}
+
+ESSAY TEXT:
+"""
+${essay}
+"""
+
+RESPOND ONLY with a valid JSON array of words (lowercase, no definitions):
+["word1", "word2", "word3"]
+
+Extract up to ${maxWords} words.`;
+  }
+
+  /**
+   * Parse words-only response
+   */
+  private parseWordsOnlyResponse(content: string): string[] {
+    try {
+      let jsonText = content.trim();
+      if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```json?\n?/g, "").replace(/```\n?$/g, "");
+      }
+
+      const words = JSON.parse(jsonText);
+
+      if (!Array.isArray(words)) {
+        throw new Error("Response is not an array");
+      }
+
+      return words
+        .filter((w): w is string => typeof w === "string")
+        .map((w) => w.toLowerCase().trim())
+        .filter((w) => w.length > 0);
+    } catch (error) {
+      console.error("Failed to parse words-only response:", error);
+      throw new Error("Failed to parse AI response. Please try again.");
+    }
   }
 
   /**

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDefaultAIService } from "@/lib/services/ai";
+import { fetchOxfordDefinition } from "@/lib/services/dictionary/oxford";
+import { ExtractedWord } from "@/lib/services/ai/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,23 +56,78 @@ export async function POST(request: NextRequest) {
         )
       : [];
 
-    // Get AI service and extract words
+    // Get AI service
     const aiService = getDefaultAIService();
 
-    const result = await aiService.extractWords({
+    // Step 1: Extract words only using AI
+    const wordsResult = await aiService.extractWordsOnly({
       essay: essay.trim(),
       allUserWords,
-      maxWords: 50, // Extract more words - maximize learning
+      maxWords: 50,
     });
 
-    if (result.error) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+    if (wordsResult.error) {
+      return NextResponse.json({ error: wordsResult.error }, { status: 500 });
+    }
+
+    if (wordsResult.words.length === 0) {
+      return NextResponse.json({
+        words: [],
+        aiModel: aiService.getName(),
+        provider: "Oxford + " + aiService.getProvider(),
+      });
+    }
+
+    // Step 2: Fetch definitions from Oxford for each word
+    // Process in batches of 3 with delays to be respectful to Oxford
+    const BATCH_SIZE = 3;
+    const DELAY_MS = 300;
+    const extractedWords: ExtractedWord[] = [];
+
+    for (let i = 0; i < wordsResult.words.length; i += BATCH_SIZE) {
+      const batch = wordsResult.words.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (word) => {
+          // Try Oxford first
+          const oxfordDef = await fetchOxfordDefinition(word);
+
+          if (oxfordDef.found && oxfordDef.definition) {
+            return {
+              word: word,
+              definition: oxfordDef.definition,
+              example_sentence: oxfordDef.example_sentence || `The word "${word}" is commonly used in English.`,
+            };
+          }
+
+          // Fallback to AI definition if Oxford doesn't have it
+          const aiDef = await aiService.getDefinitionForWord(word, essay);
+          if (aiDef) {
+            return aiDef;
+          }
+
+          // Last resort: return with placeholder
+          return null;
+        })
+      );
+
+      // Filter out nulls and add to results
+      batchResults.forEach((result) => {
+        if (result) {
+          extractedWords.push(result);
+        }
+      });
+
+      // Add delay between batches (except for last batch)
+      if (i + BATCH_SIZE < wordsResult.words.length) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+      }
     }
 
     return NextResponse.json({
-      words: result.words,
+      words: extractedWords,
       aiModel: aiService.getName(),
-      provider: aiService.getProvider(),
+      provider: "Oxford Learner's Dictionary + " + aiService.getProvider(),
     });
   } catch (error) {
     console.error("Word extraction error:", error);

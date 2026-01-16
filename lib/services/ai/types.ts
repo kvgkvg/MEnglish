@@ -22,6 +22,12 @@ export interface WordExtractionResponse {
   error?: string;
 }
 
+// Response for words-only extraction (no definitions)
+export interface WordsOnlyResponse {
+  words: string[];
+  error?: string;
+}
+
 /**
  * Base interface that all AI services must implement
  *
@@ -34,6 +40,8 @@ export interface WordExtractionResponse {
  */
 export interface AIService {
   extractWords(request: WordExtractionRequest): Promise<WordExtractionResponse>;
+  extractWordsOnly(request: WordExtractionRequest): Promise<WordsOnlyResponse>;
+  getDefinitionForWord(word: string, context?: string): Promise<ExtractedWord | null>;
   getName(): string;
   getProvider(): string;
 }

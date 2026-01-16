@@ -187,12 +187,15 @@ The AI will analyze the text and extract advanced vocabulary words that would be
                     How it works:
                   </p>
                   <ul className="text-purple-700 space-y-1 list-disc list-inside">
-                    <li>AI extracts almost ALL non-basic vocabulary from your essay</li>
+                    <li>AI extracts vocabulary words from your essay</li>
+                    <li>Definitions sourced from Oxford Learner&apos;s Dictionary</li>
                     <li>Automatically skips words you already know</li>
-                    <li>Provides clear definitions and example sentences</li>
                     <li>Maximizes learning by capturing all useful vocabulary</li>
                     <li>You can review and select which words to import</li>
                   </ul>
+                  <p className="text-purple-600 mt-2 text-xs">
+                    Note: Extraction may take longer as we fetch precise definitions from Oxford.
+                  </p>
                 </div>
               </div>
             </div>
@@ -286,7 +289,7 @@ The AI will analyze the text and extract advanced vocabulary words that would be
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Extracting...
+                    Fetching from Oxford...
                   </>
                 ) : (
                   <>
