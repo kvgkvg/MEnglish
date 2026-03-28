@@ -14,6 +14,7 @@ export interface VocabWord {
   word: string;
   definition: string;
   example_sentence: string | null;
+  pronunciation: string | null;
   created_at: string;
 }
 

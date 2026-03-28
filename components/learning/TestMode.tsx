@@ -524,9 +524,12 @@ function TrueFalseQuestionComponent({
           True or False
         </span>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">
+      <h2 className="text-2xl font-bold text-gray-900 mb-1">
         Is this definition correct for &quot;{question.word}&quot;?
       </h2>
+      {question.pronunciation && (
+        <p className="text-base text-gray-400 mb-5">/{question.pronunciation}/</p>
+      )}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
         <p className="text-lg text-gray-700">{question.definition}</p>
       </div>
@@ -584,9 +587,12 @@ function MultipleChoiceQuestionComponent({
       <h2 className="text-2xl font-bold text-gray-900 mb-2">
         What is the definition of:
       </h2>
-      <div className="text-3xl font-bold text-blue-600 mb-6">
+      <div className="text-3xl font-bold text-blue-600 mb-1">
         {question.word}
       </div>
+      {question.pronunciation && (
+        <p className="text-base text-gray-400 mb-5">/{question.pronunciation}/</p>
+      )}
       <div className="space-y-3">
         {question.options.map((option, idx) => {
           const isSelected = selectedOption === option;

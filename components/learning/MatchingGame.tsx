@@ -23,6 +23,7 @@ interface Tile {
   type: "word" | "definition";
   wordId: string;
   matched: boolean;
+  pronunciation?: string | null;
 }
 
 export function MatchingGame({
@@ -123,6 +124,7 @@ export function MatchingGame({
       type: "word",
       wordId: word.id,
       matched: false,
+      pronunciation: word.pronunciation,
     }));
 
     const definitionTiles: Tile[] = batchWords.map((word) => ({
@@ -428,6 +430,11 @@ export function MatchingGame({
                     >
                       {tile.content}
                     </p>
+                    {tile.type === "word" && tile.pronunciation && !isMatched && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        /{tile.pronunciation}/
+                      </p>
+                    )}
                   </div>
 
                   {isMatched && (

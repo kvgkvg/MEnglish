@@ -10,6 +10,7 @@ interface Word {
   word: string;
   definition: string;
   example_sentence?: string;
+  pronunciation?: string;
 }
 
 interface WordFormProps {
@@ -109,8 +110,21 @@ export function WordForm({
             id={`example-${index}`}
             value={word.example_sentence || ""}
             onChange={(e) => handleChange("example_sentence", e.target.value)}
-            onKeyDown={handleKeyDown}
             placeholder="e.g., Meeting you was pure serendipity."
+            className="mt-1.5"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={`pronunciation-${index}`}>
+            Pronunciation (optional)
+          </Label>
+          <Input
+            id={`pronunciation-${index}`}
+            value={word.pronunciation || ""}
+            onChange={(e) => handleChange("pronunciation", e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="e.g., /ˌsɛr.ənˈdɪp.ɪ.ti/"
             className="mt-1.5"
           />
         </div>

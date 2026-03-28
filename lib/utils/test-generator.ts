@@ -6,6 +6,7 @@ export interface TrueFalseQuestion {
   type: "true-false";
   id: string;
   word: string;
+  pronunciation?: string | null;
   definition: string;
   isCorrect: boolean;
   correctDefinition?: string;
@@ -15,6 +16,7 @@ export interface MultipleChoiceQuestion {
   type: "multiple-choice";
   id: string;
   word: string;
+  pronunciation?: string | null;
   options: string[];
   correctAnswer: string;
 }
@@ -129,6 +131,7 @@ function generateTrueFalseQuestion(
       type: "true-false",
       id: `tf-${word.id}`,
       word: word.word,
+      pronunciation: word.pronunciation,
       definition: word.definition,
       isCorrect: true,
     };
@@ -142,6 +145,7 @@ function generateTrueFalseQuestion(
       type: "true-false",
       id: `tf-${word.id}`,
       word: word.word,
+      pronunciation: word.pronunciation,
       definition: wrongWord.definition,
       isCorrect: false,
       correctDefinition: word.definition,
@@ -170,6 +174,7 @@ function generateMultipleChoiceQuestion(
     type: "multiple-choice",
     id: `mc-${word.id}`,
     word: word.word,
+    pronunciation: word.pronunciation,
     options,
     correctAnswer: word.definition,
   };

@@ -104,9 +104,14 @@ export function Flashcard({ word, onKnow, onDontKnow }: FlashcardProps) {
               <p className="text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">
                 Word
               </p>
-              <h2 className="text-5xl font-bold text-gray-900 mb-6 text-center">
+              <h2 className="text-5xl font-bold text-gray-900 mb-2 text-center">
                 {word.word}
               </h2>
+              {word.pronunciation && (
+                <p className="text-lg text-gray-400 mb-4 text-center">
+                  /{word.pronunciation}/
+                </p>
+              )}
               <p className="text-sm text-gray-400 italic">Tap to see definition</p>
             </motion.div>
 

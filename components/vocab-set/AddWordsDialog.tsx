@@ -18,6 +18,7 @@ interface Word {
   word: string;
   definition: string;
   example_sentence?: string;
+  pronunciation?: string;
 }
 
 interface AddWordsDialogProps {
@@ -34,14 +35,14 @@ export function AddWordsDialog({
   setName,
 }: AddWordsDialogProps) {
   const [words, setWords] = useState<Word[]>([
-    { word: "", definition: "", example_sentence: "" },
+    { word: "", definition: "", example_sentence: "", pronunciation: "" },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
 
   const handleAddWord = () => {
-    setWords([...words, { word: "", definition: "", example_sentence: "" }]);
+    setWords([...words, { word: "", definition: "", example_sentence: "", pronunciation: "" }]);
     setLastAddedIndex(words.length); // Mark the new word as needing focus
   };
 
@@ -81,7 +82,7 @@ export function AddWordsDialog({
       setError(result.error);
       setLoading(false);
     } else {
-      setWords([{ word: "", definition: "", example_sentence: "" }]);
+      setWords([{ word: "", definition: "", example_sentence: "", pronunciation: "" }]);
       setLoading(false);
       onOpenChange(false);
     }

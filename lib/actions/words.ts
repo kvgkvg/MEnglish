@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 export async function addWordsToSet(
   setId: string,
-  words: { word: string; definition: string; example_sentence?: string }[]
+  words: { word: string; definition: string; example_sentence?: string; pronunciation?: string }[]
 ) {
   const supabase = await createClient();
 
@@ -51,7 +51,7 @@ export async function addWordsToSet(
 
 export async function updateWord(
   wordId: string,
-  data: { word?: string; definition?: string; example_sentence?: string }
+  data: { word?: string; definition?: string; example_sentence?: string; pronunciation?: string }
 ) {
   const supabase = await createClient();
 

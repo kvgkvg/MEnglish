@@ -48,6 +48,7 @@ export function ImportCSVDialog({
   const [wordColumn, setWordColumn] = useState<string>("");
   const [definitionColumn, setDefinitionColumn] = useState<string>("");
   const [exampleColumn, setExampleColumn] = useState<string>("");
+  const [pronunciationColumn, setPronunciationColumn] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "map" | "preview">("upload");
@@ -75,10 +76,14 @@ export function ImportCSVDialog({
     const exampleCol = cols.find((c) =>
       /^(example|sentence|usage|context)$/i.test(c)
     );
+    const pronunciationCol = cols.find((c) =>
+      /^(pronunciation|pronounce|phonetic|ipa|pronunc)$/i.test(c)
+    );
 
     if (wordCol) setWordColumn(wordCol);
     if (defCol) setDefinitionColumn(defCol);
     if (exampleCol) setExampleColumn(exampleCol);
+    if (pronunciationCol) setPronunciationColumn(pronunciationCol);
 
     setStep("map");
   };
@@ -144,6 +149,7 @@ export function ImportCSVDialog({
         word: row[wordColumn].trim(),
         definition: row[definitionColumn].trim(),
         example_sentence: exampleColumn ? row[exampleColumn]?.trim() : undefined,
+        pronunciation: pronunciationColumn ? row[pronunciationColumn]?.trim() : undefined,
       }));
 
     if (words.length === 0) {
@@ -165,6 +171,7 @@ export function ImportCSVDialog({
       setWordColumn("");
       setDefinitionColumn("");
       setExampleColumn("");
+      setPronunciationColumn("");
       setStep("upload");
       setLoading(false);
       onOpenChange(false);
@@ -180,6 +187,7 @@ export function ImportCSVDialog({
     setWordColumn("");
     setDefinitionColumn("");
     setExampleColumn("");
+    setPronunciationColumn("");
     setStep("upload");
     setError(null);
   };
@@ -373,6 +381,26 @@ ephemeral,short-lived,Beauty is ephemeral`}
               </Select>
             </div>
 
+            <div>
+              <Label>Pronunciation Column (optional)</Label>
+              <Select
+                value={pronunciationColumn || "none"}
+                onValueChange={(val) => setPronunciationColumn(val === "none" ? "" : val)}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select column for pronunciation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {columns.map((col) => (
+                    <SelectItem key={col} value={col}>
+                      {col}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {error && (
               <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
                 {error}
@@ -394,6 +422,11 @@ ephemeral,short-lived,Beauty is ephemeral`}
                   <p className="font-semibold text-gray-900">
                     {row[wordColumn]}
                   </p>
+                  {pronunciationColumn && row[pronunciationColumn] && (
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      /{row[pronunciationColumn]}/
+                    </p>
+                  )}
                   <p className="text-sm text-gray-700 mt-1">
                     {row[definitionColumn]}
                   </p>

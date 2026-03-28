@@ -301,6 +301,11 @@ export function MultipleChoiceQuiz({
             <h2 className="text-4xl font-bold text-gray-900">
               {currentQuestion.word.word}
             </h2>
+            {currentQuestion.word.pronunciation && (
+              <p className="text-lg text-gray-400 mt-1">
+                /{currentQuestion.word.pronunciation}/
+              </p>
+            )}
           </div>
 
           {/* Options */}
