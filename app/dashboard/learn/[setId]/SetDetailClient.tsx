@@ -2,233 +2,606 @@
 
 import { useState } from "react";
 import { VocabSet, VocabWord, LearningProgress } from "@/types";
-import { WordCard } from "@/components/vocab-set/WordCard";
-import { WordProgressCard } from "@/components/learning/WordProgressCard";
+import { Bar } from "@/components/ui/bar";
+import { Pill } from "@/components/ui/pill";
 import { AddWordsDialog } from "@/components/vocab-set/AddWordsDialog";
 import { ImportCSVDialog } from "@/components/vocab-set/ImportCSVDialog";
 import { ImportEssayDialog } from "@/components/vocab-set/ImportEssayDialog";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, BookOpen, ArrowLeft, FileText, ChevronDown, Sparkles, TrendingUp, Clock } from "lucide-react";
+import { Plus, FileText, Sparkles, ChevronDown, Play, MoreVertical, Volume2, Star } from "lucide-react";
 import Link from "next/link";
 import { calculateSetMemoryScore } from "@/lib/algorithms/spaced-repetition";
-import { Progress } from "@/components/ui/progress";
 
 interface SetDetailClientProps {
   vocabSet: VocabSet & { vocab_words?: VocabWord[] };
   words: VocabWord[];
-  wordsWithProgress: Array<{
-    word: VocabWord;
-    progress: LearningProgress | null;
-  }>;
+  wordsWithProgress: Array<{ word: VocabWord; progress: LearningProgress | null }>;
+}
+
+type FilterTab = "all" | "due" | "learning" | "mastered" | "new";
+
+function getDueLabel(progress: LearningProgress | null): { label: string; accent: boolean } {
+  if (!progress) return { label: "new", accent: false };
+  const next = new Date(progress.next_review_date);
+  const now = new Date();
+  const diffMs = next.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / 86400000);
+  if (diffDays <= 0) return { label: "today", accent: true };
+  if (diffDays === 1) return { label: "tomorrow", accent: false };
+  if (diffDays < 7) return { label: `${diffDays}d`, accent: false };
+  return { label: `${Math.round(diffDays / 7)}w`, accent: false };
+}
+
+function getMasteryColor(score: number | null): string {
+  if (score === null) return "var(--mut)";
+  if (score < 40) return "var(--bad)";
+  if (score < 80) return "var(--warn)";
+  return "var(--good)";
 }
 
 export function SetDetailClient({ vocabSet, words, wordsWithProgress }: SetDetailClientProps) {
   const [addWordsOpen, setAddWordsOpen] = useState(false);
   const [importCSVOpen, setImportCSVOpen] = useState(false);
   const [importEssayOpen, setImportEssayOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"all" | "due">("all");
+  const [filter, setFilter] = useState<FilterTab>("all");
+  const [filterText, setFilterText] = useState("");
 
-  const hasWords = words.length > 0;
-
-  // Calculate set-level statistics
   const progressList = wordsWithProgress.map((w) => w.progress);
   const setMemoryScore = calculateSetMemoryScore(progressList);
 
-  const wordsDue = wordsWithProgress.filter((w) => {
-    if (!w.progress) return true; // New words are due
-    return new Date() >= new Date(w.progress.next_review_date);
+  const isDueItem = (p: LearningProgress | null) =>
+    !p || new Date(p.next_review_date) <= new Date();
+  const wordsDue = wordsWithProgress.filter((w) => isDueItem(w.progress));
+  const masteredCount = wordsWithProgress.filter((w) => w.progress && w.progress.memory_score >= 85).length;
+  const learningCount = wordsWithProgress.filter(
+    (w) => w.progress && w.progress.memory_score >= 30 && w.progress.memory_score < 85
+  ).length;
+  const newCount = wordsWithProgress.filter((w) => !w.progress).length;
+
+  const filterTabs: { id: FilterTab; label: string; count: number }[] = [
+    { id: "all", label: "All", count: wordsWithProgress.length },
+    { id: "due", label: "Due", count: wordsDue.length },
+    { id: "learning", label: "Learning", count: learningCount },
+    { id: "mastered", label: "Mastered", count: masteredCount },
+    { id: "new", label: "New", count: newCount },
+  ];
+
+  const filteredItems = wordsWithProgress.filter((item) => {
+    if (filterText) {
+      const q = filterText.toLowerCase();
+      if (!item.word.word.toLowerCase().includes(q) && !item.word.definition.toLowerCase().includes(q))
+        return false;
+    }
+    switch (filter) {
+      case "due": return isDueItem(item.progress);
+      case "learning":
+        return item.progress && item.progress.memory_score >= 30 && item.progress.memory_score < 85;
+      case "mastered": return item.progress && item.progress.memory_score >= 85;
+      case "new": return !item.progress;
+      default: return true;
+    }
   });
 
-  const masteredCount = wordsWithProgress.filter(
-    (w) => w.progress && w.progress.memory_score >= 85
-  ).length;
-
-  const displayWords = viewMode === "due" ? wordsDue : wordsWithProgress;
+  // Stacked mastery bar percentages
+  const total = wordsWithProgress.length || 1;
+  const masteredPct = Math.round((masteredCount / total) * 100);
+  const learningPct = Math.round((learningCount / total) * 100);
+  const stuckPct = Math.round(
+    (wordsWithProgress.filter((w) => w.progress && w.progress.memory_score < 40).length / total) * 100
+  );
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <Link
-          href="/dashboard/learn"
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Learn
+    <div style={{ maxWidth: 1300, margin: "0 auto", padding: "20px 24px 60px" }}>
+      {/* Breadcrumb */}
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--mut)",
+          fontFamily: "var(--font-mono)",
+          letterSpacing: "0.04em",
+          marginBottom: 8,
+        }}
+      >
+        <Link href="/dashboard/learn" style={{ color: "var(--mut)", textDecoration: "none" }}>
+          LIBRARY
         </Link>
+        <span style={{ margin: "0 6px", opacity: 0.5 }}>/</span>
+        <span style={{ color: "var(--ink)" }}>{vocabSet.name.toUpperCase()}</span>
+      </div>
 
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900">{vocabSet.name}</h1>
-            {vocabSet.description && (
-              <p className="text-gray-600 mt-2">{vocabSet.description}</p>
+      {/* Header 2-col */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 380px",
+          gap: 20,
+          marginBottom: 16,
+          alignItems: "start",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 34,
+              fontWeight: 600,
+              letterSpacing: "-0.03em",
+              lineHeight: 1.05,
+              color: "var(--ink)",
+              marginBottom: 8,
+            }}
+          >
+            {vocabSet.name}
+          </h1>
+          {vocabSet.description && (
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--mut)",
+                maxWidth: 540,
+                fontFamily: "var(--font-serif)",
+                fontStyle: "italic",
+                marginBottom: 14,
+              }}
+            >
+              {vocabSet.description}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {wordsDue.length > 0 && (
+              <Link
+                href={`/dashboard/learn/${vocabSet.id}/learn`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 5,
+                  background: "var(--ink)",
+                  color: "var(--bg)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  textDecoration: "none",
+                }}
+              >
+                <Play size={12} /> Study {wordsDue.length} due
+              </Link>
             )}
-            <div className="flex items-center gap-4 mt-4 text-sm">
-              <span className="font-medium text-gray-900">{words.length} words</span>
-              {words.length > 0 && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span className="text-gray-600">
-                    {masteredCount} mastered ({Math.round((masteredCount / words.length) * 100)}%)
-                  </span>
-                  {wordsDue.length > 0 && (
-                    <>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-orange-600 font-medium">
-                        {wordsDue.length} due for review
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Set Memory Score */}
-            {words.length > 0 && (
-              <div className="mt-4 max-w-md">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" />
-                    Set Memory Score
-                  </span>
-                  <span className="text-sm font-bold text-blue-600">{setMemoryScore}%</span>
-                </div>
-                <Progress value={setMemoryScore} className="h-2" />
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3">
+            <Link
+              href={`/dashboard/learn/${vocabSet.id}/learn`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 5,
+                border: "0.5px solid var(--bd)",
+                background: "transparent",
+                color: "var(--ink)",
+                fontSize: 12,
+                textDecoration: "none",
+              }}
+            >
+              Choose mode
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Words
-                  <ChevronDown className="w-4 h-4 ml-2" />
-                </Button>
+                <button
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "6px 10px",
+                    borderRadius: 5,
+                    border: "0.5px solid var(--bd)",
+                    background: "transparent",
+                    color: "var(--mut)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Plus size={11} /> Add words <ChevronDown size={10} />
+                </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="start">
                 <DropdownMenuItem onClick={() => setAddWordsOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Manually
+                  <Plus className="w-4 h-4 mr-2" /> Add manually
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setImportCSVOpen(true)}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Import CSV/TSV
+                  <FileText className="w-4 h-4 mr-2" /> Import CSV/TSV
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setImportEssayOpen(true)}>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AI Essay Import
+                  <Sparkles className="w-4 h-4 mr-2" /> AI Essay import
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {hasWords && (
-              <Button asChild>
-                <Link href={`/dashboard/learn/${vocabSet.id}/learn`}>
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Start Learning
-                </Link>
-              </Button>
-            )}
+            <button
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                borderRadius: 5,
+                border: "0.5px solid var(--bd)",
+                background: "transparent",
+                color: "var(--mut)",
+                cursor: "pointer",
+              }}
+            >
+              <MoreVertical size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* Mastery breakdown card */}
+        <div
+          style={{
+            background: "var(--card)",
+            border: "0.5px solid var(--bd)",
+            borderRadius: 6,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--ink)" }}>
+                Mastery
+              </h3>
+              <p style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
+                {masteredCount}/{words.length} words · {setMemoryScore}% score
+              </p>
+            </div>
+          </div>
+          {/* Stacked bar */}
+          <div
+            style={{
+              display: "flex",
+              height: 8,
+              borderRadius: 4,
+              overflow: "hidden",
+              background: "var(--mut2)",
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ width: `${masteredPct}%`, background: "var(--good)" }} />
+            <div style={{ width: `${learningPct}%`, background: "var(--warn)" }} />
+            <div style={{ width: `${stuckPct}%`, background: "var(--bad)" }} />
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 8,
+              fontSize: 10,
+              fontFamily: "var(--font-mono)",
+              color: "var(--mut)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "var(--good)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                {masteredCount}
+              </div>
+              Mastered
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "var(--warn)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                {learningCount}
+              </div>
+              Learning
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "var(--bad)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                {wordsWithProgress.filter((w) => w.progress && w.progress.memory_score < 40).length}
+              </div>
+              Stuck
+            </div>
+            <div>
+              <div
+                style={{
+                  color: "var(--mut)",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                {newCount}
+              </div>
+              New
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Empty State */}
-      {!hasWords && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <BookOpen className="w-8 h-8 text-blue-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              No Words Yet
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Add vocabulary words to start building your set. You can add them manually,
-              import from CSV/TSV files, or use AI to extract words from essays.
-            </p>
-            <Button onClick={() => setAddWordsOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Your First Words
-            </Button>
-          </div>
+      {/* Filter tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 0,
+          borderBottom: "0.5px solid var(--bd)",
+          alignItems: "center",
+        }}
+      >
+        {filterTabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setFilter(t.id)}
+            style={{
+              appearance: "none",
+              border: 0,
+              borderBottom: `1.5px solid ${filter === t.id ? "var(--acc)" : "transparent"}`,
+              background: "transparent",
+              padding: "8px 14px",
+              fontSize: 12,
+              fontWeight: 500,
+              color: filter === t.id ? "var(--ink)" : "var(--mut)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: -0.5,
+            }}
+          >
+            {t.label}
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                color: "var(--mut)",
+                padding: "1px 5px",
+                background: "var(--mut2)",
+                borderRadius: 3,
+              }}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            padding: "4px 0",
+          }}
+        >
+          <input
+            placeholder="Filter words…"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            style={{
+              background: "var(--mut2)",
+              border: "0.5px solid var(--bd)",
+              borderRadius: 4,
+              padding: "4px 8px",
+              fontSize: 11,
+              fontFamily: "var(--font-sans)",
+              color: "var(--ink)",
+              outline: "none",
+              width: 160,
+            }}
+          />
         </div>
-      )}
+      </div>
 
-      {/* Words Grid */}
-      {hasWords && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Vocabulary Words
-            </h2>
-            <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode("all")}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    viewMode === "all"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  All Words ({wordsWithProgress.length})
-                </button>
-                <button
-                  onClick={() => setViewMode("due")}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
-                    viewMode === "due"
-                      ? "bg-white text-orange-600 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <Clock className="w-3 h-3" />
-                  Due for Review ({wordsDue.length})
-                </button>
-              </div>
-            </div>
+      {/* Word table */}
+      <div
+        style={{
+          background: "var(--card)",
+          border: "0.5px solid var(--bd)",
+          borderTop: 0,
+          borderRadius: "0 0 6px 6px",
+        }}
+      >
+        {/* Table header */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "40px 200px 1fr 120px 80px 60px",
+            gap: 14,
+            padding: "8px 14px",
+            background: "var(--mut2)",
+            borderBottom: "0.5px solid var(--bd)",
+            fontSize: 10,
+            color: "var(--mut)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          <div />
+          <div>Word</div>
+          <div>Definition</div>
+          <div>Mastery</div>
+          <div>Due</div>
+          <div />
+        </div>
+
+        {filteredItems.length === 0 && (
+          <div
+            style={{
+              padding: "32px 14px",
+              textAlign: "center",
+              fontSize: 13,
+              color: "var(--mut)",
+            }}
+          >
+            No words match this filter.
           </div>
+        )}
 
-          {/* Empty state for "Due" view */}
-          {viewMode === "due" && wordsDue.length === 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
-              <div className="max-w-md mx-auto">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="w-8 h-8 text-green-600" />
+        {filteredItems.map((item, i) => {
+          const w = item.word;
+          const p = item.progress;
+          const score = p?.memory_score ?? null;
+          const barColor = getMasteryColor(score);
+          const { label: dueLabel, accent: dueAccent } = getDueLabel(p);
+
+          return (
+            <div
+              key={w.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "40px 200px 1fr 120px 80px 60px",
+                gap: 14,
+                padding: "12px 14px",
+                borderTop: i > 0 ? "0.5px solid var(--bd)" : "none",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  color: "var(--mut)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {String(i + 1).padStart(3, "0")}
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontFamily: "var(--font-serif)",
+                    fontStyle: "italic",
+                    fontWeight: 500,
+                    color: "var(--ink)",
+                  }}
+                >
+                  {w.word}
                 </div>
-                <h3 className="text-lg font-semibold text-green-900 mb-2">
-                  All Caught Up!
-                </h3>
-                <p className="text-green-700">
-                  No words need review right now. Check back later or practice with learning modes to strengthen your memory.
-                </p>
+                {w.pronunciation && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--mut)",
+                      marginTop: 1,
+                    }}
+                  >
+                    {w.pronunciation}
+                  </div>
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: "var(--ink)", lineHeight: 1.4 }}>
+                  {w.definition}
+                </div>
+                {w.example_sentence && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--mut)",
+                      fontStyle: "italic",
+                      marginTop: 2,
+                      fontFamily: "var(--font-serif)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {w.example_sentence}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ flex: 1 }}>
+                  <Bar value={score ?? 0} max={100} color={barColor} />
+                </div>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--mut)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {score !== null ? `${Math.round(score)}%` : "—"}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: "var(--font-mono)",
+                  color: dueAccent ? "var(--acc)" : "var(--mut)",
+                }}
+              >
+                {dueLabel}
+              </div>
+              <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                <button
+                  title="Listen"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    borderRadius: 4,
+                    border: "0.5px solid var(--bd)",
+                    background: "transparent",
+                    color: "var(--mut)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Volume2 size={11} />
+                </button>
+                <button
+                  title="Star"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    borderRadius: 4,
+                    border: "0.5px solid var(--bd)",
+                    background: "transparent",
+                    color: "var(--mut)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Star size={11} />
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Words Grid */}
-          {displayWords.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayWords.map((item) => (
-                <WordProgressCard
-                  key={item.word.id}
-                  word={item.word.word}
-                  definition={item.word.definition}
-                  progress={item.progress}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       {/* Dialogs */}
       <AddWordsDialog
